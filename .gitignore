@@ -1,0 +1,18 @@
+# Byte‑compiled / cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+
+# Config / secrets
+config.py
+.env
+
+# Captured images, detections, training data
+captures/
+detections/
+training_data/
+
+# Logs
+logs/
