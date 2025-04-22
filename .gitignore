@@ -16,3 +16,4 @@ training_data/
 
 # Logs
 logs/
+nohup.out
