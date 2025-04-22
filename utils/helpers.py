@@ -7,12 +7,12 @@ import cv2
 import time
 import shutil
 import config
+import logging
 from glob import glob
-from pathlib import Path # Moved from save_yolo_training_sample
+from pathlib import Path
 
-# Note: This function appears unused in the current main.py flow.
-# The InferenceEngine likely handles saving annotated images directly or indirectly.
-# Consider refactoring or removing if truly redundant.
+logger = logging.getLogger(__name__)
+
 def save_annotated_image(results, camera_id, output_dir):
     """
     Saves an image annotated by Ultralytics YOLO results.
@@ -27,23 +27,43 @@ def save_annotated_image(results, camera_id, output_dir):
         camera_id (str): Identifier for the camera (used for subfolder naming).
         output_dir (str): The base directory where the annotated image subfolder will be created.
     """
-    # Construct the full path for the camera-specific save folder
     save_folder = os.path.join(output_dir, camera_id)
-    # Create the folder if it doesn't exist
     os.makedirs(save_folder, exist_ok=True)
 
-    # Generate the annotated image as a NumPy array using YOLO's plot() method
-    # Assumes results[0] contains the primary detection result
-    annotated_img = results[0].plot()
+    annotated_img = None
+    try:
+        # Check if results is not None and has the plot method
+        if results and hasattr(results[0], 'plot'):
+            logger.debug(f"[{camera_id} - DEBUG] Generating annotated image using YOLO plot()...")
+            annotated_img = results[0].plot()
+        else:
+            logger.error(f"[{camera_id} - ERROR] Invalid or empty results object passed to save_annotated_image. Cannot generate annotated image.")
+            return # Cannot proceed without results
+    except IndexError:
+         logger.error(f"[{camera_id} - ERROR] results list appears empty. Cannot generate annotated image.")
+         return
+    except Exception as e:
+        logger.exception(f"[{camera_id} - ERROR] Error during YOLO plot() for annotation: {e}")
+        return # Cannot proceed if plotting fails
 
-    # Generate a timestamp string for the filename (YYYYMMDD-HHMMSS)
+    if annotated_img is None:
+        logger.error(f"[{camera_id} - ERROR] Failed to generate annotated image (annotated_img is None).")
+        return
+
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    # Construct the full output path for the annotated image file
     output_path = os.path.join(save_folder, f"{timestamp}.jpg")
 
-    # Save the annotated image using OpenCV
-    cv2.imwrite(output_path, annotated_img)
-    print(f"[INFO] Annotated image saved: {output_path}")
+    logger.info(f"[{camera_id} - INFO] Attempting to save annotated image to: {output_path}")
+    try:
+        # Save the annotated image using OpenCV
+        success = cv2.imwrite(output_path, annotated_img)
+        if success:
+            logger.info(f"[{camera_id} - INFO] Annotated image successfully saved: {output_path}")
+        else:
+            # Log specific failure for imwrite, although it might not always return False
+            logger.error(f"[{camera_id} - ERROR] cv2.imwrite failed to save annotated image to: {output_path}. Check permissions/disk space.")
+    except Exception as e:
+        logger.exception(f"[{camera_id} - ERROR] Exception during cv2.imwrite for annotated image {output_path}: {e}")
 
 
 def generate_capture_path(camera_id, base_dir, suffix="jpg"):
@@ -92,12 +112,16 @@ def save_yolo_training_sample(image_path, detections, camera_id, output_dir):
         camera_id (str): Identifier for the camera (used for subfolder naming).
         output_dir (str): The base directory where the training data subfolder will be created.
     """
-    # Read the image to get its dimensions (height, width)
-    img = cv2.imread(image_path)
-    if img is None:
-        print(f"[ERROR] Could not read image for training sample: {image_path}")
+    try:
+        # Read the image to get its dimensions (height, width)
+        img = cv2.imread(image_path)
+        if img is None:
+            logger.error(f"Could not read image for training sample: {image_path}")
+            return
+        height, width = img.shape[:2]
+    except Exception as e:
+        logger.exception(f"Error reading image {image_path} for training sample: {e}")
         return
-    height, width = img.shape[:2]
 
     # Extract the base filename (without extension) from the image path
     base_name = Path(image_path).stem
@@ -111,35 +135,48 @@ def save_yolo_training_sample(image_path, detections, camera_id, output_dir):
     label_out_path = os.path.join(camera_dir, f"{base_name}.txt")
 
     # Copy the original image to the training data directory
-    shutil.copy(image_path, img_out_path)
+    try:
+        shutil.copy(image_path, img_out_path)
+    except Exception as e:
+        logger.exception(f"Error copying image {image_path} to {img_out_path}: {e}")
+        return # Don't create label file if image copy failed
 
     # Create and write the YOLO format label file (.txt)
-    with open(label_out_path, "w") as f:
-        for det in detections:
-            label = det["label"]
-            try:
-                # Find the integer class ID corresponding to the label string.
-                # Assumes the order in config.DETECTION_CLASSES matches the desired IDs.
-                # WARNING: This will fail if a detected label is not in config.DETECTION_CLASSES.
-                class_id = config.DETECTION_CLASSES.index(label)
-            except ValueError:
-                print(f"[WARN] Label '{label}' not found in config.DETECTION_CLASSES. Skipping for training sample.")
-                continue # Skip this detection if the label is not recognized
+    try:
+        with open(label_out_path, "w") as f:
+            for det in detections:
+                label = det["label"]
+                try:
+                    # Find the integer class ID corresponding to the label string.
+                    # Assumes the order in config.DETECTION_CLASSES matches the desired IDs.
+                    class_id = config.DETECTION_CLASSES.index(label)
+                except ValueError:
+                    logger.warning(f"Label '{label}' from {image_path} not found in config.DETECTION_CLASSES. Skipping for training sample.")
+                    continue # Skip this detection if the label is not recognized
 
-            # Extract bounding box coordinates (x_min, y_min, x_max, y_max)
-            x1, y1, x2, y2 = det["bbox"]
+                # Extract bounding box coordinates (x_min, y_min, x_max, y_max)
+                x1, y1, x2, y2 = det["bbox"]
 
-            # --- Normalize coordinates for YOLO format --- 
-            # x_center = (x_min + x_max) / 2 / image_width
-            # y_center = (y_min + y_max) / 2 / image_height
-            # bbox_width = (x_max - x_min) / image_width
-            # bbox_height = (y_max - y_min) / image_height
-            x_center = ((x1 + x2) / 2) / width
-            y_center = ((y1 + y2) / 2) / height
-            bbox_width = (x2 - x1) / width
-            bbox_height = (y2 - y1) / height
+                # --- Normalize coordinates for YOLO format --- 
+                # x_center = (x_min + x_max) / 2 / image_width
+                # y_center = (y_min + y_max) / 2 / image_height
+                # bbox_width = (x_max - x_min) / image_width
+                # bbox_height = (y_max - y_min) / image_height
+                x_center = ((x1 + x2) / 2) / width
+                y_center = ((y1 + y2) / 2) / height
+                bbox_width = (x2 - x1) / width
+                bbox_height = (y2 - y1) / height
 
-            # Write the line in YOLO format: class_id x_center y_center width height
-            f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {bbox_width:.6f} {bbox_height:.6f}\n")
+                # Write the line in YOLO format: class_id x_center y_center width height
+                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {bbox_width:.6f} {bbox_height:.6f}\n")
+    except Exception as e:
+        logger.exception(f"Error writing label file {label_out_path}: {e}")
+        # Consider deleting the copied image if label writing fails
+        try:
+            os.remove(img_out_path)
+            logger.info(f"Removed image {img_out_path} due to label writing failure.")
+        except OSError as remove_err:
+            logger.error(f"Failed to remove image {img_out_path} after label error: {remove_err}")
+        return
 
-    print(f"[DATASET] Saved sample for training: {img_out_path}, {label_out_path}")
+    logger.info(f"[DATASET] Saved sample for training: {img_out_path}, {label_out_path}")

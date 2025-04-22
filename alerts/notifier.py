@@ -3,9 +3,13 @@
 
 import smtplib
 import os
+import logging # Import logging
 from email.message import EmailMessage
-# Consider adding 'imghdr' to determine image subtype dynamically
+# Consider adding 'imghdr' to determine image subtype dynamically for broader support
 # import imghdr
+
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
 
 def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
     """
@@ -21,10 +25,10 @@ def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
                                   path doesn't exist, no image is attached.
         smtp_settings (dict): A dictionary containing SMTP configuration:
             { "server": str, "port": int, "from_email": str, "password": str }
-            WARNING: Passing passwords directly is insecure. Use environment variables
-                     or a secure configuration method.
+            WARNING: Passing passwords directly is insecure. Consider using environment
+                     variables or a secure configuration method.
     """
-    print(f"[ALERT] Preparing email for: {', '.join(to_emails)}")
+    logger.info(f"Preparing email alert for: {', '.join(to_emails)}")
 
     # Create the email message object
     msg = EmailMessage()
@@ -42,23 +46,23 @@ def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
                 img_data = img.read()
                 # Determine image subtype (e.g., 'jpeg', 'png') dynamically if needed
                 # subtype = imghdr.what(None, h=img_data)
-                subtype = "jpeg" # Currently hardcoded
+                subtype = os.path.splitext(image_path)[1].lstrip('.') or "jpeg" # Basic subtype from extension
 
                 msg.add_attachment(
                     img_data,
                     maintype="image",
                     subtype=subtype, # Use determined subtype
-                    filename=os.path.basename(image_path) # Use the image's filename
+                    filename=os.path.basename(image_path)
                 )
-            print(f"[ALERT] Attached image: {os.path.basename(image_path)}")
+            logger.info(f"Attached image: {os.path.basename(image_path)}")
         except IOError as e:
-            print(f"[ERROR] Could not read or attach image file {image_path}: {e}")
+            logger.error(f"Could not read image file {image_path}: {e}")
         except Exception as e:
-            print(f"[ERROR] Unexpected error attaching image {image_path}: {e}")
+            logger.exception(f"Unexpected error attaching image {image_path}: {e}")
     elif image_path:
-        print(f"[WARN] Image path provided but file not found: {image_path}. Not attaching image.")
+        logger.warning(f"Image path provided but file not found: {image_path}. Not attaching image.")
     else:
-        print("[ALERT] No image path provided. Not attaching image.")
+        logger.info("No image path provided. Not attaching image.")
 
     # --- Send Email via SMTP --- 
     try:
@@ -69,15 +73,15 @@ def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
             smtp.login(smtp_settings["from_email"], smtp_settings["password"])
             # Send the complete email message
             smtp.send_message(msg)
-        print(f"[ALERT] Email sent successfully to: {msg['To']}")
+        logger.info(f"Email sent successfully to: {msg['To']}")
     except smtplib.SMTPAuthenticationError as e:
-        print(f"[ERROR] SMTP Authentication failed for {smtp_settings['from_email']}: {e}")
-        print("        Check email address and password/app password.")
+        logger.error(f"SMTP Authentication failed for {smtp_settings['from_email']}: {e}")
+        logger.error("Check email address and password/app password.") # Keep specific advice
     except smtplib.SMTPException as e:
-        print(f"[ERROR] Failed to send email via SMTP ({smtp_settings['server']}:{smtp_settings['port']}): {e}")
+        logger.error(f"Failed to send email via SMTP ({smtp_settings['server']}:{smtp_settings['port']}): {e}")
     except OSError as e:
         # Catches potential network/socket errors
-        print(f"[ERROR] Network error connecting to SMTP server {smtp_settings['server']}: {e}")
+        logger.error(f"Network error connecting to SMTP server {smtp_settings['server']}: {e}")
     except Exception as e:
         # Catch any other unexpected errors during SMTP communication
-        print(f"[ERROR] Unexpected error sending email: {e}")
+        logger.exception(f"Unexpected error sending email: {e}")

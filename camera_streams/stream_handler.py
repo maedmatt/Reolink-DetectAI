@@ -4,6 +4,9 @@
 import cv2
 import time
 import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 class StreamHandler:
     """
@@ -16,12 +19,12 @@ class StreamHandler:
 
         Args:
             rtsp_url (str): The RTSP URL of the camera stream.
-            reconnect_delay (int, optional): Seconds to wait before attempting
-                                             to reconnect after a failure. Defaults to 5.
+            reconnect_delay (int): Seconds to wait before attempting
+                                   to reconnect after a failure.
         """
         self.rtsp_url = rtsp_url
         self.reconnect_delay = reconnect_delay
-        self.cap = None  # OpenCV VideoCapture object, initially None
+        self.cap = None  # OpenCV VideoCapture object, initialized in connect()
 
     def connect(self):
         """
@@ -30,19 +33,20 @@ class StreamHandler:
         Initializes the OpenCV VideoCapture object. Consider adding a check here
         to see if the connection was immediately successful.
         """
-        print(f"[INFO] Attempting to connect to stream: {self.rtsp_url}")
+        logger.info(f"Attempting to connect to stream: {self.rtsp_url}")
         # Use FFMPEG backend for potentially better RTSP compatibility
         self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         # Optional: Check self.cap.isOpened() here for immediate feedback
         # if not self.cap.isOpened():
-        #     print(f"[ERROR] Failed to open stream immediately: {self.rtsp_url}")
+        #     logger.error(f"Failed to open stream immediately: {self.rtsp_url}")
 
     def get_frame(self):
         """
         A generator function that continuously yields frames from the stream.
 
         Handles reconnection if the stream is not opened or fails during capture.
-        Includes logic to skip several frames to potentially get a more recent one.
+        Includes logic to grab several frames (buffer flushing) to potentially get
+        a more recent one from live streams.
 
         Yields:
             numpy.ndarray: The captured video frame, or None if retrieval fails
@@ -51,27 +55,26 @@ class StreamHandler:
         while True:
             # Check if the stream is disconnected or not initialized
             if self.cap is None or not self.cap.isOpened():
-                print("[WARN] Stream disconnected or not initialized. Attempting to connect...")
+                logger.warning("Stream disconnected or not initialized. Attempting to connect...")
                 self.connect() # Try to establish connection
                 # Wait before checking again or trying to grab frames
                 time.sleep(self.reconnect_delay)
                 # If connection failed after delay, continue loop to retry
                 if self.cap is None or not self.cap.isOpened():
-                    print("[WARN] Reconnect attempt failed. Retrying...")
+                    logger.warning("Reconnect attempt failed. Retrying...")
                     continue
                 else:
-                    print("[INFO] Stream connected successfully.")
+                    logger.info("Stream connected successfully.")
 
             try:
                 # --- Frame Buffering/Skipping --- 
                 # Grab (but don't decode) several frames to clear any buffer lag.
                 # The number of frames to grab is set by FRAME_BUFFER_FLUSH in config.
-                # This helps in getting a more current frame from live streams.
                 for _ in range(config.FRAME_BUFFER_FLUSH):
                     grabbed = self.cap.grab() # Fetches frame data without decoding
                     if not grabbed:
                         # If grab fails, likely a stream issue, break inner loop to reconnect
-                        print("[WARN] Frame grab failed during buffer flush.")
+                        logger.warning("Frame grab failed during buffer flush.")
                         ret = False # Signal failure
                         break 
                 else: # Only runs if the loop completed without break
@@ -80,7 +83,7 @@ class StreamHandler:
 
                 # Check if frame retrieval was successful
                 if not ret:
-                    print("[WARNING] Frame retrieve failed after grab. Reconnecting...")
+                    logger.warning("Frame retrieve failed after grab. Reconnecting...")
                     # Release the potentially faulty capture object
                     if self.cap:
                         self.cap.release()
@@ -92,18 +95,18 @@ class StreamHandler:
                 yield frame
 
             except cv2.error as e:
-                 print(f"[ERROR] OpenCV error during frame grab/retrieve: {e}. Reconnecting...")
+                 logger.error(f"OpenCV error during frame grab/retrieve: {e}. Reconnecting...")
                  if self.cap:
                     self.cap.release()
-                 self.cap = None
+                 self.cap = None # Ensure reconnect is triggered
                  time.sleep(self.reconnect_delay)
                  continue
             except Exception as e:
                  # Catch other potential errors
-                 print(f"[ERROR] Unexpected error in get_frame loop: {e}. Reconnecting...")
+                 logger.exception(f"Unexpected error in get_frame loop: {e}. Reconnecting...")
                  if self.cap:
                     self.cap.release()
-                 self.cap = None
+                 self.cap = None # Ensure reconnect is triggered
                  time.sleep(self.reconnect_delay)
                  continue
 
@@ -114,8 +117,8 @@ class StreamHandler:
 
         Should be called when the stream is no longer needed to free up resources.
         """
-        print("[INFO] Releasing video stream resources...")
+        logger.info(f"Releasing video stream resources for {self.rtsp_url}...")
         if self.cap is not None and self.cap.isOpened():
             self.cap.release()
-            print("[INFO] Video stream released.")
+            logger.info(f"Video stream released for {self.rtsp_url}.")
         self.cap = None
