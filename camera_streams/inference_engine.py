@@ -1,5 +1,5 @@
 # camera_streams/inference_engine.py
-# This module defines the InferenceEngine class responsible for running the YOLO object detection model.
+# Handles object detection using YOLOv8 model
 
 from ultralytics import YOLO
 import config
@@ -10,81 +10,59 @@ logger = logging.getLogger(__name__)
 
 class InferenceEngine:
     """
-    Wraps the YOLOv8 model for performing object detection inference.
-
-    Loads the model and configuration upon initialization and provides a method
-    to run inference on a given image path.
+    YOLOv8 object detection engine that processes images to identify objects.
+    
+    This class loads the YOLOv8 model and provides methods to detect objects
+    in images with configurable confidence thresholds and target classes.
     """
     def __init__(self):
         """
-        Initializes the InferenceEngine.
-
-        - Loads the YOLOv8 model specified in the config file.
-        - Stores the target detection classes and confidence threshold from config.
+        Initializes the YOLOv8 model with configuration settings.
         """
         logger.info(f"Loading YOLOv8 model from {config.YOLO_MODEL_PATH}...")
-        # Load the YOLO model from the path specified in the configuration
-        # Ensure the model file (e.g., yolov8n.pt) exists at this path.
         self.model = YOLO(config.YOLO_MODEL_PATH)
-        # Store the list of classes we are interested in detecting (e.g., ["person", "car"])
         self.target_classes = config.DETECTION_CLASSES
-        # Store the minimum confidence score required to consider a detection valid
         self.conf_threshold = config.YOLO_CONFIDENCE_THRESHOLD
 
     def run(self, image_path, camera_id=None):
         """
-        Runs YOLOv8 object detection on the specified image.
-
-        - Performs inference using the loaded model.
-        - Filters results based on configured target classes and confidence threshold.
-        - Saves the annotated image (with bounding boxes) if detections are found.
-        - Saves the image and detections in YOLO training format if detections are found.
-        - Returns a list of filtered detections.
-
+        Performs object detection on an image and filters for target objects.
+        
         Args:
-            image_path (str): The path to the image file to process.
-            camera_id (str, optional): The identifier of the camera source. Used for
-                                       organizing saved output files. Defaults to None.
-
+            image_path (str): Path to the image file for analysis
+            camera_id (str, optional): Camera identifier for organizing outputs
+            
         Returns:
-            list: A list of dictionaries, where each dictionary represents a detected
-                  object matching the criteria. Each dict has keys: 'label', 
-                  'confidence', 'bbox' (tuple: x1, y1, x2, y2).
-                  Returns an empty list if no target objects are detected.
+            list: Filtered detections matching target classes with format:
+                 [{'label': 'person', 'confidence': 0.95, 'bbox': (x1,y1,x2,y2)}, ...]
         """
-        results = None # Initialize results
+        results = None
         try:
-            # Log model conf threshold being used
-            logger.debug(f"[{camera_id} - DEBUG] Running YOLO model with conf_threshold={self.conf_threshold}")
-            results_list = self.model(image_path, conf=self.conf_threshold) # Keep separate conf for model call
-            # Check if results list is not empty
+            logger.debug(f"[{camera_id} - DEBUG] Running YOLO with confidence threshold {self.conf_threshold}")
+            results_list = self.model(image_path, conf=self.conf_threshold)
+            
             if results_list:
-                results = results_list[0] # Assume the first result is the one we want
-                logger.info(f"[{camera_id} - INFO] YOLO inference completed. Found {len(results.boxes)} total boxes initially.")
+                results = results_list[0]
+                logger.info(f"[{camera_id} - INFO] Found {len(results.boxes)} total detections")
             else:
-                 logger.warning(f"[{camera_id} - WARN] YOLO inference returned empty results list for {image_path}.")
-                 return [] # No results to process
+                logger.warning(f"[{camera_id} - WARN] No inference results for {image_path}")
+                return []
         except Exception as e:
-            logger.exception(f"[{camera_id} - ERROR] YOLO inference failed for image {image_path}: {e}")
-            return [] # Return empty list on inference error
-
-        if results is None:
-            logger.warning(f"[{camera_id} - WARN] YOLO results object is None after inference attempt for {image_path}, cannot proceed.")
+            logger.exception(f"[{camera_id} - ERROR] Inference failed: {e}")
             return []
 
-        filtered_detections = [] # Initialize list to store filtered detections
+        if results is None:
+            logger.warning(f"[{camera_id} - WARN] YOLO returned no results for {image_path}")
+            return []
 
-        # Iterate through each bounding box detected in the results
+        filtered_detections = []
         for box in results.boxes:
             cls_id = int(box.cls)
-            label = results.names.get(cls_id, f"Unknown_ID_{cls_id}") # Use .get for safety
+            label = results.names.get(cls_id, f"Unknown_ID_{cls_id}")
             conf = float(box.conf)
 
-            # Log the raw detection before filtering (consider DEBUG level)
-            logger.debug(f"[{camera_id} - DEBUG] Raw detection: Label='{label}', Confidence={conf:.2f}")
+            logger.debug(f"[{camera_id} - DEBUG] Detection: {label}, confidence={conf:.2f}")
 
-            # Check if the detected label is one of the target classes we care about
-            # Confidence filter is already applied by the model call
             if label in self.target_classes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 filtered_detections.append({
@@ -92,32 +70,28 @@ class InferenceEngine:
                     "confidence": conf,
                     "bbox": (x1, y1, x2, y2)
                 })
-                logger.debug(f"[{camera_id} - DEBUG] Kept detection: Label='{label}', Confidence={conf:.2f} (Target class matched)")
+                logger.debug(f"[{camera_id} - DEBUG] Keeping {label} detection (confidence={conf:.2f})")
             else:
-                logger.debug(f"[{camera_id} - DEBUG] Filtered out detection: Label='{label}' (Not in target classes: {self.target_classes})")
+                logger.debug(f"[{camera_id} - DEBUG] Ignoring {label} (not in target classes)")
 
-        logger.info(f"[{camera_id} - INFO] Found {len(filtered_detections)} detections matching target classes {self.target_classes} and confidence > {self.conf_threshold}.")
+        logger.info(f"[{camera_id} - INFO] Found {len(filtered_detections)} matching detections")
 
-        # If any target objects were detected and a camera_id was provided:
         if filtered_detections and camera_id:
-            # Log before saving annotated image
-            logger.info(f"[{camera_id} - INFO] Saving annotated image for {len(filtered_detections)} detection(s)...")
+            logger.info(f"[{camera_id} - INFO] Saving annotated detection image")
             save_annotated_image(
-                results=[results], # Pass the original results for plotting
+                results=[results],
                 camera_id=camera_id,
                 output_dir=config.DETECTIONS_DIR
             )
             
-            # Log before saving training sample
-            logger.info(f"[{camera_id} - INFO] Saving YOLO training sample for {len(filtered_detections)} detection(s)...")
+            logger.info(f"[{camera_id} - INFO] Saving detection data for training")
             save_yolo_training_sample(
                 image_path=image_path,
-                detections=filtered_detections, # Pass the filtered list
+                detections=filtered_detections,
                 camera_id=camera_id,
                 output_dir=config.TRAINING_DATA_DIR
             )
         elif camera_id:
-             logger.info(f"[{camera_id} - INFO] No target objects detected meeting criteria. Skipping saving of annotated image and training data.")
+            logger.info(f"[{camera_id} - INFO] No target objects detected")
 
-        # Return the list of filtered detections
         return filtered_detections

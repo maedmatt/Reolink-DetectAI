@@ -1,66 +1,63 @@
 # camera_streams/motion_detector.py
-# Defines the MotionDetector class for detecting motion between consecutive frames.
+# Implements lightweight motion detection to trigger more intensive object detection
 
 import cv2
 import numpy as np
 
 class MotionDetector:
     """
-    Implements a simple motion detection algorithm based on frame differencing.
-
-    Compares the current frame with the previous one to identify areas of change.
+    Detects motion by comparing consecutive frames.
+    
+    Uses pixel-by-pixel comparison to identify changes between frames,
+    triggering deeper analysis only when significant motion is detected.
+    This acts as an efficient first-pass filter before running 
+    more computationally expensive object detection.
     """
     def __init__(self, threshold, min_area):
         """
-        Initializes the MotionDetector.
-
+        Initialize motion detector with sensitivity settings.
+        
         Args:
-            threshold (int): The threshold value for pixel intensity difference.
-                             Pixels with a difference greater than this value are
-                             considered potentially part of motion.
-            min_area (int): The minimum number of pixels that need to change
-                            (exceed the threshold) to trigger motion detection.
+            threshold: Pixel intensity difference threshold (0-255)
+                      Higher values require more significant changes in brightness
+            min_area: Minimum number of changed pixels to trigger detection
+                     Higher values require larger moving objects
         """
-        self.threshold = threshold  # Sensitivity for pixel difference
-        self.min_area = min_area    # Minimum area (pixel count) to qualify as motion
-        self.prev_frame = None      # Stores the previous frame for comparison
+        self.threshold = threshold
+        self.min_area = min_area
+        self.prev_frame = None
 
     def detect(self, frame):
         """
-        Detects motion in the current frame compared to the previous one.
-
+        Analyzes a frame for motion compared to previous frame.
+        
         Args:
-            frame (numpy.ndarray): The current video frame (in BGR format).
-
+            frame: BGR format image from camera
+            
         Returns:
-            tuple: A tuple containing:
-                - bool: True if motion exceeding min_area is detected, False otherwise.
-                - int: The motion score (number of pixels exceeding the difference threshold).
+            (motion_detected, motion_score): Boolean detection result and numeric score
         """
-        # Convert the current frame to grayscale for simpler comparison
+        # Convert to grayscale for simpler comparison
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # If this is the first frame, store it and return no motion
+        # First frame case
         if self.prev_frame is None:
             self.prev_frame = gray
-            return False, 0 # No previous frame to compare against
+            return False, 0
 
-        # 1. Calculate the absolute difference between the previous frame and the current gray frame
+        # Calculate absolute difference between frames
         diff = cv2.absdiff(self.prev_frame, gray)
 
-        # 2. Apply a binary threshold:
-        # Pixels with difference > self.threshold become white (255), others black (0).
+        # Apply threshold to identify significant changes
         _, thresh = cv2.threshold(diff, self.threshold, 255, cv2.THRESH_BINARY)
 
-        # 3. Calculate motion score: Count the number of white pixels in the thresholded image.
-        # This represents the area where significant change occurred.
+        # Count changed pixels to measure motion amount
         motion_score = cv2.countNonZero(thresh)
 
-        # 4. Determine if motion is detected by comparing the score to the minimum area threshold.
+        # Determine if motion exceeds threshold
         motion_detected = motion_score > self.min_area
 
-        # Update the previous frame for the next iteration
+        # Update previous frame for next comparison
         self.prev_frame = gray
 
-        # Return the detection status and the calculated score
         return motion_detected, motion_score
