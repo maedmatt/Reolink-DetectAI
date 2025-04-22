@@ -59,27 +59,7 @@ YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")  # Path to the YOLO
 YOLO_CONFIDENCE_THRESHOLD = float(os.getenv("YOLO_CONFIDENCE_THRESHOLD", 0.6))
                                 # Higher = fewer, but more certain, detections.
 # Expects comma-separated string in .env, e.g., "person,car"
-_detection_classes_str = os.getenv("DETECTION_CLASSES", "person,car")
-# Filter the list to only include valid classes
-VALID_DETECTION_CLASSES = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
-    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
-    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
-    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", 
-    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
-    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier",
-    "toothbrush"
-]
-DETECTION_CLASSES = [c.strip() for c in _detection_classes_str.split(',') 
-                    if c.strip() and c.strip().lower() in [cls.lower() for cls in VALID_DETECTION_CLASSES]]
-if not DETECTION_CLASSES:
-    logging.warning("DETECTION_CLASSES is empty after filtering. Check .env variable. Defaulting to ['person', 'car']")
-    DETECTION_CLASSES = ["person", "car"]
+DETECTION_CLASSES = ["person", "car"]
 # Get base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DETECTIONS_DIR = os.path.join(BASE_DIR, "detections") # Directory to save annotated images (with bounding boxes).
