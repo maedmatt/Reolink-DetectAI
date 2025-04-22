@@ -18,6 +18,7 @@ A Python application using OpenCV and YOLOv8 to monitor Reolink (or other RTSP) 
 * Saves captured frames and annotated detection images
 * Email alerts with annotated images
 * Cooldown periods to prevent alert spam
+* Creation of a personalized dataset for fine-tuning
 
 ## 🛠️ Installation
 
@@ -56,9 +57,9 @@ Run the application:
 python main.py
 ```
 
-For a background process:
+For a background process: (logs are saved inside logs/)
 ```bash
-nohup python main.py > nohup.out 2>&1 &
+nohup python main.py &
 ```
 
 ## 📜 License
