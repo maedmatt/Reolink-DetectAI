@@ -144,11 +144,9 @@ def main():
 
                             if os.path.exists(annotated_path):
                                 detected_alert_labels = list(detected_labels.intersection(required_labels_for_alert))
-                                subject = f"🔔 Alert [{camera_id}]: { ' or '.join(detected_alert_labels).capitalize() } Detected"
                                 body = f"Detected { ' or '.join(detected_alert_labels) } on camera {camera_id}. All labels: {list(detected_labels)}"
                                 
                                 send_alert_email(
-                                    subject=subject,
                                     body=body,
                                     to_emails=config.ALERT_EMAILS,
                                     image_path=annotated_path,
