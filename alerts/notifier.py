@@ -5,11 +5,12 @@ import smtplib
 import os
 import logging
 from email.message import EmailMessage
+from email.utils import make_msgid
 
 # Get a logger instance for this module
 logger = logging.getLogger(__name__)
 
-def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
+def send_alert_email(body, to_emails, image_path, smtp_settings):
     """
     Sends an email alert with an optional detected object image.
     
@@ -18,7 +19,7 @@ def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
     quickly verify the detection.
     
     Args:
-        subject: Email subject line
+        subject: Email subject line (will be ignored in favor of fixed subject)
         body: Plain text email content
         to_emails: List of recipient email addresses
         image_path: Path to detection image to attach (or None)
@@ -27,11 +28,26 @@ def send_alert_email(subject, body, to_emails, image_path, smtp_settings):
     """
     logger.info(f"Preparing email alert for: {', '.join(to_emails)}")
 
-    # Create email message
+    # Create email message with fixed subject for threading
     msg = EmailMessage()
-    msg["Subject"] = subject
+    msg["Subject"] = "Reolink Detection Alert"
     msg["From"] = smtp_settings["from_email"]
     msg["To"] = ", ".join(to_emails)
+    
+    # Add email threading headers to keep emails in the same thread
+    # Use a fixed Message-ID reference for the thread
+    thread_id = smtp_settings.get("thread_id", make_msgid(domain=smtp_settings["server"]))
+    
+    # If this is the first message, it establishes the thread
+    # Otherwise, it references the original thread
+    if smtp_settings.get("is_first_message", True):
+        # Store the thread ID for future messages
+        smtp_settings["thread_id"] = thread_id
+        smtp_settings["is_first_message"] = False
+    else:
+        msg["In-Reply-To"] = thread_id
+        msg["References"] = thread_id
+    
     msg.set_content(body)
 
     # Attach image if available
