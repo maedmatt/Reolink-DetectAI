@@ -56,8 +56,8 @@ Run the application:
 ```bash
 python main.py
 ```
-
-For a background process: (logs are saved inside logs/app.log)
+> [!IMPORTANT] 
+> For a background process: (logs are saved inside logs/app.log)
 1) Create a systemd service file:  
 ```bash
 sudo nano /etc/systemd/system/reolink-detectai.service
