@@ -7,8 +7,9 @@
 A Python application using OpenCV and YOLOv8 to monitor Reolink (or other RTSP) camera streams for motion, perform object detection (person, car, etc.), and send email alerts with detected images.
 
 <p align="center">
-  <img src="https://github.com/ultralytics/assets/raw/main/yolov8/yolo-comparison-plots.png" alt="YOLOv8 Performance" width="600">
+  <img src="assets/reolink-detectai.jpg" alt="Example Detection" width="600">
 </p>
+<p align="center"><em>Example of Reolink Detect AI detecting multiple persons and a car via RTSP stream.</em></p>
 
 ## ✨ Features
 
