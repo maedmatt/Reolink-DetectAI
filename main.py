@@ -144,7 +144,7 @@ def main():
 
                             if os.path.exists(annotated_path):
                                 detected_alert_labels = list(detected_labels.intersection(required_labels_for_alert))
-                                body = f"Detected { ' or '.join(detected_alert_labels) } on camera {camera_id}. All labels: {list(detected_labels)}"
+                                body = f"Detected { ' or '.join(detected_alert_labels) } on camera {camera_id}."
                                 
                                 send_alert_email(
                                     body=body,

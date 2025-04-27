@@ -57,9 +57,33 @@ Run the application:
 python main.py
 ```
 
-For a background process: (logs are saved inside logs/)
+For a background process: (logs are saved inside logs/app.log)
+1) Create a systemd service file:  
 ```bash
-nohup python main.py &
+   sudo nano /etc/systemd/system/reolink-detectai.service
+```
+2) Paste this:  
+```ini
+   [Unit]
+   Description=Reolink DetectAI
+   After=network.target
+
+   [Service]
+   ExecStart=/home/matt/reolink-detectai/venv/bin/python /home/matt/reolink-detectai/main.py
+   WorkingDirectory=/home/matt/reolink-detectai
+   Restart=always
+   RestartSec=5
+   User=matt
+
+   [Install]
+   WantedBy=multi-user.target
+```
+3) Enable and start it:  
+```bash
+   sudo systemctl daemon-reexec
+   sudo systemctl daemon-reload
+   sudo systemctl enable reolink-detectai
+   sudo systemctl start reolink-detectai
 ```
 
 ## 📜 License
