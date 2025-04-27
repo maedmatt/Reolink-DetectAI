@@ -9,7 +9,7 @@ A Python application using OpenCV and YOLOv8 to monitor Reolink (or other RTSP) 
 <p align="center">
   <img src="assets/reolink-detectai.jpg" alt="Example Detection" width="600">
 </p>
-<p align="center"><em>Example of Reolink Detect AI detecting multiple persons and a car via RTSP stream.</em></p>
+<p align="center"><em>Example of Reolink Detect AI detecting multiple people and a car via RTSP stream.</em></p>
 
 ## ✨ Features
 
