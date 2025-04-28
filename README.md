@@ -59,11 +59,11 @@ python main.py
 ```
 > [!IMPORTANT] 
 > For a background process: (logs are saved inside logs/app.log)
-1) Create a systemd service file:  
+> 1) Create a systemd service file:  
 ```bash
 sudo nano /etc/systemd/system/reolink-detectai.service
 ```
-2) Paste this:  
+> 2) Paste this:  
 ```ini
 [Unit]
 Description=Reolink DetectAI
@@ -79,7 +79,7 @@ User=matt
 [Install]
 WantedBy=multi-user.target
 ```
-3) Enable and start it:  
+> 3) Enable and start it:  
 ```bash
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
