@@ -53,39 +53,76 @@ Key configuration options in `.env`:
 
 ## 🚀 Usage
 
-Run the application:
+Run the application directly:
 ```bash
 python main.py
 ```
-> [!IMPORTANT] 
-> For a background process: (logs are saved inside logs/app.log)
-1) Create a systemd service file:  
-```bash
-sudo nano /etc/systemd/system/reolink-detectai.service
-```
-2) Paste this:  
-```ini
-[Unit]
-Description=Reolink DetectAI
-After=network.target
 
-[Service]
-ExecStart=/home/matt/reolink-detectai/venv/bin/python /home/matt/reolink-detectai/main.py
-WorkingDirectory=/home/matt/reolink-detectai
-Restart=always
-RestartSec=5
-User=matt
+### Running as a Systemd Service (Linux)
 
-[Install]
-WantedBy=multi-user.target
-```
-3) Enable and start it:  
-```bash
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable reolink-detectai
-sudo systemctl start reolink-detectai
-```
+This method is for running the application as a background service on **Linux distributions that use systemd** (like Ubuntu, Debian, Fedora, CentOS 7+, etc.).
+To run the application reliably in the background on a Linux system using systemd:
+
+1.  **Create a systemd service file:**
+    Use a text editor (like `nano`) with `sudo` to create the service file:
+    ```bash
+    sudo nano /etc/systemd/system/reolink-detectai.service
+    ```
+
+2.  **Paste the following configuration** into the file. **Important:** Replace `/path/to/reolink-detectai` with the actual absolute path to your project directory and `your_username` with the user you want the service to run as.
+
+    ```ini
+    [Unit]
+    Description=Reolink DetectAI Application
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=your_username
+    WorkingDirectory=/path/to/reolink-detectai
+    ExecStart=/path/to/reolink-detectai/venv/bin/python /path/to/reolink-detectai/main.py
+    Restart=on-failure
+    RestartSec=5
+    # Optional: Standard output and error logging
+    # StandardOutput=file:/path/to/reolink-detectai/logs/service.log
+    # StandardError=file:/path/to/reolink-detectai/logs/service.err.log
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+    *   `WorkingDirectory`: Ensures the script runs from the correct directory.
+    *   `ExecStart`: Specifies the command to run the application using the virtual environment's Python interpreter.
+    *   `User`: Sets the user under which the process will run.
+    *   `Restart`: Configures the service to restart automatically if it fails.
+    *   Uncomment and adjust the `StandardOutput`/`StandardError` lines if you want to redirect logs to specific files instead of the system journal.
+
+3.  **Reload the systemd daemon:**
+    This makes systemd aware of the new service file.
+    ```bash
+    sudo systemctl daemon-reload
+    ```
+
+4.  **Enable the service:**
+    This ensures the service starts automatically on system boot.
+    ```bash
+    sudo systemctl enable reolink-detectai.service
+    ```
+
+5.  **Start the service:**
+    You can start the service immediately without rebooting.
+    ```bash
+    sudo systemctl start reolink-detectai.service
+    ```
+
+6.  **Check the service status (optional):**
+    Verify that the service is running correctly.
+    ```bash
+    sudo systemctl status reolink-detectai.service
+    ```
+    You can also view logs using `journalctl`:
+    ```bash
+    sudo journalctl -u reolink-detectai.service -f
+    ```
 
 ## 📜 License
 
