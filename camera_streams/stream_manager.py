@@ -24,7 +24,7 @@ class StreamManager:
         """
         self.streams = {}
         self.threads = {}
-        self.frame_queue = queue.Queue()
+        self.frame_queue = queue.Queue(maxsize=config.MAX_FRAME_BUFFER_SIZE)
         self._stop_event = threading.Event()
 
         logger.info("Initializing Stream Manager...")
